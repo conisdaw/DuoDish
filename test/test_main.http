@@ -1,0 +1,756 @@
+@host = http://127.0.0.1:8000
+@contentType = application/json
+
+########################################
+# 1. 用户认证
+########################################
+
+### 注册用户1（Alice）
+POST {{host}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "alice",
+  "password": "123456",
+  "nickname": "Alice"
+}
+
+> {%
+  client.global.set("token1", response.body.data.token);
+%}
+
+### 注册用户2（Bob）
+POST {{host}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "bob",
+  "password": "123456",
+  "nickname": "Bob"
+}
+
+> {%
+  client.global.set("token2", response.body.data.token);
+%}
+
+### 用户1登录
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "alice",
+  "password": "123456"
+}
+
+> {%
+  client.global.set("token1", response.body.data.token);
+%}
+
+### 用户2登录
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "bob",
+  "password": "123456"
+}
+
+> {%
+  client.global.set("token2", response.body.data.token);
+%}
+
+########################################
+# 2. 用户信息（从 Token 自动识别身份）
+########################################
+
+### 获取当前用户信息（Alice）
+GET {{host}}/api/users/me
+Authorization: Bearer {{token1}}
+
+### 上传头像图片（Alice）
+POST {{host}}/api/upload
+Authorization: Bearer {{token1}}
+Content-Type: multipart/form-data; boundary=avatar-boundary
+
+--avatar-boundary
+Content-Disposition: form-data; name="file"; filename="alice_avatar.png"
+Content-Type: image/png
+
+< ./test_image/71645695_p0.png
+--avatar-boundary--
+
+> {%
+  client.global.set("aliceAvatarUrl", response.body.data.url);
+%}
+
+### 更新当前用户昵称和头像（Alice）
+PUT {{host}}/api/users/me
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "nickname": "小爱",
+  "avatar": "{{aliceAvatarUrl}}"
+}
+
+### 上传头像图片（Bob）
+POST {{host}}/api/upload
+Authorization: Bearer {{token2}}
+Content-Type: multipart/form-data; boundary=avatar-boundary2
+
+--avatar-boundary2
+Content-Disposition: form-data; name="file"; filename="bob_avatar.jpg"
+Content-Type: image/jpeg
+
+< ./test_image/68240045_p0.jpg
+--avatar-boundary2--
+
+> {%
+  client.global.set("bobAvatarUrl", response.body.data.url);
+%}
+
+### 更新当前用户昵称和头像（Bob）
+PUT {{host}}/api/users/me
+Authorization: Bearer {{token2}}
+Content-Type: {{contentType}}
+
+{
+  "nickname": "阿宝",
+  "avatar": "{{bobAvatarUrl}}"
+}
+
+### 获取当前用户信息（Alice，验证头像已更新）
+GET {{host}}/api/users/me
+Authorization: Bearer {{token1}}
+
+### 获取当前用户信息（Bob，验证头像已更新）
+GET {{host}}/api/users/me
+Authorization: Bearer {{token2}}
+
+########################################
+# 3. 忌口与偏好
+########################################
+
+### 设置当前用户偏好（Alice: 不吃香菜和葱，喜欢辣和麻）
+PUT {{host}}/api/users/me/preferences
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "dislikes": ["香菜", "葱", "芥末"],
+  "likes": ["辣", "麻", "川菜"]
+}
+
+### 设置当前用户偏好（Bob: 不吃辣，喜欢甜品）
+PUT {{host}}/api/users/me/preferences
+Authorization: Bearer {{token2}}
+Content-Type: {{contentType}}
+
+{
+  "dislikes": ["辣", "花椒"],
+  "likes": ["甜品", "日料", "清淡"]
+}
+
+### 查看当前用户偏好（Alice）
+GET {{host}}/api/users/me/preferences
+Authorization: Bearer {{token1}}
+
+### 查看当前用户偏好（Bob）
+GET {{host}}/api/users/me/preferences
+Authorization: Bearer {{token2}}
+
+########################################
+# 4. 纪念日管理
+########################################
+
+### 创建纪念日 —— 在一起纪念日（每年重复）
+POST {{host}}/api/anniversaries
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "name": "在一起纪念日",
+  "date": "2025-03-04",
+  "description": "我们在一起的第一天 ❤️",
+  "is_recurring": 1,
+  "remind_days": 7
+}
+
+### 创建纪念日 —— Bob 生日（每年重复）
+POST {{host}}/api/anniversaries
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "name": "Bob生日",
+  "date": "2026-06-15",
+  "is_recurring": 1,
+  "remind_days": 5
+}
+
+### 创建纪念日 —— 每周约会日（每周重复）
+POST {{host}}/api/anniversaries
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "name": "每周约会日",
+  "date": "2026-03-07",
+  "description": "每周六的固定约会",
+  "is_recurring": 2,
+  "remind_days": 1
+}
+
+### 获取所有纪念日
+GET {{host}}/api/anniversaries
+Authorization: Bearer {{token1}}
+
+### 获取即将到来的纪念日（7天内）
+GET {{host}}/api/anniversaries/upcoming?days=7
+Authorization: Bearer {{token1}}
+
+### 获取即将到来的纪念日（30天内）
+GET {{host}}/api/anniversaries/upcoming?days=30
+Authorization: Bearer {{token1}}
+
+### 修改纪念日
+PUT {{host}}/api/anniversaries/1
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "description": "最特别的日子",
+  "remind_days": 10
+}
+
+### 删除纪念日（按需取消注释）
+#DELETE {{host}}/api/anniversaries/3
+#Authorization: Bearer {{token1}}
+
+########################################
+# 5. 点餐记录
+########################################
+
+### 创建点餐记录1 —— 海底捞
+POST {{host}}/api/orders
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "restaurant": "海底捞",
+  "address": "北京市朝阳区望京SOHO",
+  "date": "2026-03-05T12:00:00",
+  "dishes": [
+    {"name": "麻辣牛肉", "price": 68.0, "ordered_by": 1},
+    {"name": "虾滑", "price": 38.0, "ordered_by": 2},
+    {"name": "酸梅汤", "price": 12.0, "notes": "少糖"}
+  ],
+  "moods": {"user1": "暖", "user2": "甜"},
+  "notes": "今天很开心，第一次一起吃火锅"
+}
+
+> {%
+  client.global.set("orderId1", response.body.data.id);
+%}
+
+### 创建点餐记录2 —— 寿司店
+POST {{host}}/api/orders
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "restaurant": "一幸寿司",
+  "address": "北京市海淀区中关村",
+  "date": "2026-03-04T18:30:00",
+  "dishes": [
+    {"name": "三文鱼刺身", "price": 88.0, "ordered_by": 2},
+    {"name": "鳗鱼饭", "price": 58.0, "ordered_by": 1},
+    {"name": "味增汤", "price": 15.0}
+  ],
+  "moods": {"user1": "甜", "user2": "暖"}
+}
+
+> {%
+  client.global.set("orderId2", response.body.data.id);
+%}
+
+### 创建点餐记录3 —— 再去海底捞
+POST {{host}}/api/orders
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "restaurant": "海底捞",
+  "address": "北京市朝阳区望京SOHO",
+  "date": "2026-03-03T19:00:00",
+  "dishes": [
+    {"name": "毛肚", "price": 42.0, "ordered_by": 1},
+    {"name": "肥牛卷", "price": 52.0, "ordered_by": 2},
+    {"name": "冰粉", "price": 8.0}
+  ],
+  "moods": {"user1": "躁", "user2": "冷"},
+  "notes": "今天都有点累，火锅治愈一切"
+}
+
+### 获取点餐列表（分页）
+GET {{host}}/api/orders?page=1&size=10
+Authorization: Bearer {{token1}}
+
+### 按餐厅筛选
+GET {{host}}/api/orders?restaurant=海底捞
+Authorization: Bearer {{token1}}
+
+### 按时间范围筛选
+GET {{host}}/api/orders?startDate=2026-03-04&endDate=2026-03-05
+Authorization: Bearer {{token1}}
+
+### 获取单个点餐详情
+GET {{host}}/api/orders/{{orderId1}}
+Authorization: Bearer {{token1}}
+
+### 更新点餐记录
+PUT {{host}}/api/orders/{{orderId1}}
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "notes": "今天很开心，第一次一起吃火锅！下次要试试番茄锅"
+}
+
+### 忌口校验 —— 有冲突（香菜是Alice忌口）
+POST {{host}}/api/orders/validate
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "dishes": [
+    {"name": "香菜牛肉丸", "ordered_for": 1},
+    {"name": "水煮鱼", "ordered_for": 2},
+    {"name": "蒜蓉西兰花"}
+  ]
+}
+
+### 忌口校验 —— 无冲突
+POST {{host}}/api/orders/validate
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "dishes": [
+    {"name": "清蒸鲈鱼", "ordered_for": 1},
+    {"name": "蛋炒饭", "ordered_for": 2}
+  ]
+}
+
+### 删除点餐记录（按需取消注释）
+#DELETE {{host}}/api/orders/{{orderId1}}
+#Authorization: Bearer {{token1}}
+
+########################################
+# 6. 盲猜价格游戏
+########################################
+
+### 初始化盲猜游戏（系统随机选菜）
+POST {{host}}/api/orders/{{orderId1}}/price-guess/init
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{}
+
+### 查看盲猜游戏状态（价格被隐藏）
+GET {{host}}/api/orders/{{orderId1}}/price-guess
+Authorization: Bearer {{token1}}
+
+### Alice 提交猜测（身份从 Token 自动识别）
+POST {{host}}/api/orders/{{orderId1}}/price-guess
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "guess": 45.0
+}
+
+### Bob 提交猜测（身份从 Token 自动识别）
+POST {{host}}/api/orders/{{orderId1}}/price-guess
+Authorization: Bearer {{token2}}
+Content-Type: {{contentType}}
+
+{
+  "guess": 60.0
+}
+
+### 再次查看状态（两人都已猜完）
+GET {{host}}/api/orders/{{orderId1}}/price-guess
+Authorization: Bearer {{token1}}
+
+### 揭晓结果
+GET {{host}}/api/orders/{{orderId1}}/price-guess/result
+Authorization: Bearer {{token1}}
+
+########################################
+# 7. 文件上传
+########################################
+
+### 单文件上传（图片）
+POST {{host}}/api/upload
+Authorization: Bearer {{token1}}
+Content-Type: multipart/form-data; boundary=upload-boundary
+
+--upload-boundary
+Content-Disposition: form-data; name="file"; filename="hotpot_photo.png"
+Content-Type: image/png
+
+< ./test_image/72027189_p0.png
+--upload-boundary--
+
+> {%
+  client.global.set("uploadUrl1", response.body.data.url);
+%}
+
+### 单文件上传（第2张图片）
+POST {{host}}/api/upload
+Authorization: Bearer {{token1}}
+Content-Type: multipart/form-data; boundary=upload-boundary2
+
+--upload-boundary2
+Content-Disposition: form-data; name="file"; filename="sushi_photo.png"
+Content-Type: image/png
+
+< ./test_image/72100589_p0.png
+--upload-boundary2--
+
+> {%
+  client.global.set("uploadUrl2", response.body.data.url);
+%}
+
+### 单文件上传（第3张图片）
+POST {{host}}/api/upload
+Authorization: Bearer {{token2}}
+Content-Type: multipart/form-data; boundary=upload-boundary3
+
+--upload-boundary3
+Content-Disposition: form-data; name="file"; filename="dessert_photo.png"
+Content-Type: image/png
+
+< ./test_image/72204201_p0.png
+--upload-boundary3--
+
+> {%
+  client.global.set("uploadUrl3", response.body.data.url);
+%}
+
+### 批量上传文件（3张图片）
+POST {{host}}/api/upload/batch
+Authorization: Bearer {{token1}}
+Content-Type: multipart/form-data; boundary=batch-boundary
+
+--batch-boundary
+Content-Disposition: form-data; name="files"; filename="pic_batch_1.png"
+Content-Type: image/png
+
+< ./test_image/69988918_p0.png
+--batch-boundary
+Content-Disposition: form-data; name="files"; filename="pic_batch_2.png"
+Content-Type: image/png
+
+< ./test_image/70004896_p0.png
+--batch-boundary
+Content-Disposition: form-data; name="files"; filename="pic_batch_3.png"
+Content-Type: image/png
+
+< ./test_image/71607942_p1.png
+--batch-boundary--
+
+########################################
+# 8. 味觉日记
+########################################
+
+### 为点餐1写日记（纯文字，无图片）
+POST {{host}}/api/orders/{{orderId1}}/diary
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "content": "第一次一起吃海底捞，麻辣牛肉超好吃！虾滑也很新鲜，下次还来这家。",
+  "rating": 5
+}
+
+### 为点餐2写日记（附带已上传的图片URL）
+# ⚠️ 请先运行第7节「文件上传」获取 uploadUrl1 ~ uploadUrl3
+POST {{host}}/api/orders/{{orderId2}}/diary
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "content": "一幸寿司的三文鱼刺身入口即化，鳗鱼饭也很赞。拍了好多照片！",
+  "rating": 5,
+  "images": ["{{uploadUrl2}}", "{{uploadUrl3}}"]
+}
+
+### 更新日记1（追加图片和修改评分）
+PUT {{host}}/api/taste-diary/1
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "content": "第一次一起吃海底捞，麻辣牛肉超好吃！虾滑也很新鲜，下次还来这家。冰粉也不错！",
+  "images": ["{{uploadUrl1}}"],
+  "rating": 4
+}
+
+### 获取所有味觉日记
+GET {{host}}/api/taste-diary?page=1&size=10
+Authorization: Bearer {{token1}}
+
+### 获取单篇日记详情（验证图片URL）
+GET {{host}}/api/taste-diary/1
+Authorization: Bearer {{token1}}
+
+### 获取第二篇日记详情（验证多图片）
+GET {{host}}/api/taste-diary/2
+Authorization: Bearer {{token1}}
+
+########################################
+# 8.5 私家厨房
+########################################
+
+### 上传菜品（HowToCook 菜谱 md 链接 + 图片 + 食材）
+# 菜谱来自 https://github.com/Anduin2017/HowToCook，需先运行 python scripts/setup_howtocook.py
+# 使用第 7 节上传的图片 URL
+POST {{host}}/api/private-kitchen/dishes
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "name": "西红柿炒鸡蛋",
+  "recipe": "完整菜谱：[西红柿炒鸡蛋](/temp/HowToCook/dishes/vegetable_dish/西红柿炒鸡蛋.md)",
+  "recipe_url": "/temp/HowToCook/dishes/vegetable_dish/西红柿炒鸡蛋.md",
+  "images": ["{{uploadUrl1}}"],
+  "ingredients": [
+    {"name": "番茄", "amount": "2", "unit": "个"},
+    {"name": "鸡蛋", "amount": "3", "unit": "个"},
+    {"name": "盐", "amount": "适量", "unit": ""}
+  ]
+}
+
+### 上传第二道菜（蒜蓉西兰花，HowToCook md 链接）
+POST {{host}}/api/private-kitchen/dishes
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "name": "蒜蓉西兰花",
+  "recipe": "完整菜谱：[蒜蓉西兰花](/temp/HowToCook/dishes/vegetable_dish/蒜蓉西兰花.md)",
+  "recipe_url": "/temp/HowToCook/dishes/vegetable_dish/蒜蓉西兰花.md",
+  "images": ["{{uploadUrl2}}"],
+  "ingredients": [
+    {"name": "西兰花", "amount": "1", "unit": "棵"},
+    {"name": "蒜", "amount": "3", "unit": "瓣"}
+  ]
+}
+
+### 获取私家厨房菜品列表
+GET {{host}}/api/private-kitchen/dishes?page=1&size=10
+Authorization: Bearer {{token1}}
+
+### 按关键词搜索菜品
+GET {{host}}/api/private-kitchen/dishes?keyword=番茄
+Authorization: Bearer {{token1}}
+
+### 获取菜品详情
+GET {{host}}/api/private-kitchen/dishes/1
+Authorization: Bearer {{token1}}
+
+### 点菜（将番茄炒蛋加入制作计划）
+POST {{host}}/api/private-kitchen/selections
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "dish_id": 1
+}
+
+### 点菜（Bob 将蒜蓉西兰花加入计划）
+POST {{host}}/api/private-kitchen/selections
+Authorization: Bearer {{token2}}
+Content-Type: {{contentType}}
+
+{
+  "dish_id": 2
+}
+
+### 制作接口：查看当前计划中的菜品（含食材、菜谱、图片）
+GET {{host}}/api/private-kitchen/selections
+Authorization: Bearer {{token1}}
+
+### 备菜接口：当前计划所需食材汇总
+GET {{host}}/api/private-kitchen/ingredients
+Authorization: Bearer {{token1}}
+
+### 从计划中移除菜品
+DELETE {{host}}/api/private-kitchen/selections/2
+Authorization: Bearer {{token1}}
+
+### 更新菜品菜谱（仍使用 md 链接形式）
+PUT {{host}}/api/private-kitchen/dishes/1
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "recipe": "完整菜谱（已更新）：[西红柿炒鸡蛋](/temp/HowToCook/dishes/vegetable_dish/西红柿炒鸡蛋.md)"
+}
+
+### 删除菜品
+# DELETE {{host}}/api/private-kitchen/dishes/2
+# Authorization: Bearer {{token1}}
+
+########################################
+# 9. 味觉地图
+########################################
+
+### 获取所有味觉地图标记点
+GET {{host}}/api/taste-map/points
+Authorization: Bearer {{token1}}
+
+### 按餐厅名筛选
+GET {{host}}/api/taste-map/points?restaurant=海底捞
+Authorization: Bearer {{token1}}
+
+########################################
+# 10. 成就系统
+########################################
+
+### 获取所有成就定义
+GET {{host}}/api/achievements
+Authorization: Bearer {{token1}}
+
+### 获取当前用户的成就进度（Alice）
+GET {{host}}/api/users/me/achievements
+Authorization: Bearer {{token1}}
+
+### 获取当前用户的成就进度（Bob）
+GET {{host}}/api/users/me/achievements
+Authorization: Bearer {{token2}}
+
+########################################
+# 11. 爱情银行
+########################################
+
+### 查看当前用户爱情币余额（Alice）
+GET {{host}}/api/users/me/love-coins
+Authorization: Bearer {{token1}}
+
+### 查看当前用户爱情币余额（Bob）
+GET {{host}}/api/users/me/love-coins
+Authorization: Bearer {{token2}}
+
+### 查看当前用户积分流水
+GET {{host}}/api/users/me/love-coin-transactions?page=1&size=20
+Authorization: Bearer {{token1}}
+
+### 查看可兑换特权列表
+GET {{host}}/api/redeem-items
+Authorization: Bearer {{token1}}
+
+### 兑换「免洗碗特权」（需200爱情币）
+POST {{host}}/api/redeem
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "itemId": 1
+}
+
+### 兑换「一星不生气券」（需500爱情币）
+POST {{host}}/api/redeem
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "itemId": 3
+}
+
+### 再兑换2张一星不生气券（为合成做准备）
+POST {{host}}/api/redeem
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "itemId": 3
+}
+
+###
+POST {{host}}/api/redeem
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "itemId": 3
+}
+
+### 查看当前用户背包（应有3张一星不生气券+1个免洗碗特权）
+GET {{host}}/api/users/me/inventory
+Authorization: Bearer {{token1}}
+
+### 合成二星不生气券（传入3张一星的 redemption_id）
+# seed 数据：redemption 1,2,3 为一星不生气券，4 为免洗碗。合成需 [1,2,3]
+# 若 DB 非 seed 初始，请先运行 inventory 获取实际 redemption_id
+POST {{host}}/api/redeem/synthesize
+Authorization: Bearer {{token1}}
+Content-Type: {{contentType}}
+
+{
+  "itemIds": [1, 2, 3]
+}
+
+### 合成后再查看背包（一星消失，多了一张二星）
+GET {{host}}/api/users/me/inventory
+Authorization: Bearer {{token1}}
+
+### 查看合成后的爱情币余额
+GET {{host}}/api/users/me/love-coins
+Authorization: Bearer {{token1}}
+
+########################################
+# 12. 情绪温度计
+########################################
+
+### 获取全部情绪统计
+GET {{host}}/api/moods/statistics
+Authorization: Bearer {{token1}}
+
+### 按时间范围查询情绪统计
+GET {{host}}/api/moods/statistics?startDate=2026-03-01&endDate=2026-03-31
+Authorization: Bearer {{token1}}
+
+########################################
+# 13. 选择困难症拯救器
+########################################
+
+### 随机推荐3道菜（自动结合当前用户偏好）
+GET {{host}}/api/recommendations?count=3
+Authorization: Bearer {{token1}}
+
+### 指定餐厅推荐
+GET {{host}}/api/recommendations?restaurant=海底捞&count=2
+Authorization: Bearer {{token1}}
+
+### 根据心情推荐（甜 → 偏甜品类）
+GET {{host}}/api/recommendations?mood=甜&count=3
+Authorization: Bearer {{token1}}
+
+########################################
+# 14. 惊喜模式
+########################################
+
+### 查看惊喜模式状态（临近纪念日时自动激活）
+GET {{host}}/api/surprise-mode/status
+Authorization: Bearer {{token1}}
+
+########################################
+# 15. 仪表盘（首页聚合数据）
+########################################
+
+### 获取仪表盘数据
+GET {{host}}/api/dashboard
+Authorization: Bearer {{token1}}

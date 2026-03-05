@@ -1,0 +1,42 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+
+# 数据库（本地开发）
+*.db
+*.db-wal
+*.db-shm
+
+# 环境与密钥
+.env
+.env.local
+.env.*.local
+
+# 临时与克隆仓库
+temp/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 用户上传
+uploads/

@@ -15,6 +15,7 @@ async def get_user(db=Depends(get_db), user_id: int = Depends(get_current_user))
         raise HTTPException(404, "用户不存在")
     data = dict(user)
     data.pop("password_hash", None)
+    data.pop("dingtalk", None)  # 加签密钥，敏感信息不返回
     return ApiResponse(data=data)
 
 
@@ -27,6 +28,7 @@ async def update_user(body: UserUpdate, db=Depends(get_db),
     user = await user_svc.get_user(db, user_id)
     data = dict(user)
     data.pop("password_hash", None)
+    data.pop("dingtalk", None)  # 加签密钥，敏感信息不返回
     return ApiResponse(data=data)
 
 

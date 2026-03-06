@@ -1,6 +1,15 @@
+import base64
+import hmac
 import json
 import random
+import time
+import urllib.parse
 from datetime import date
+from typing import Tuple
+
+import httpx
+
+from app.config import DINGTALK_NOTIFY_TEMPLATE
 
 
 MOOD_TAG_MAP = {
@@ -156,3 +165,64 @@ async def get_dashboard(db):
         "total_orders": total_orders,
         "total_restaurants": total_restaurants,
     }
+
+
+def _dingtalk_sign(secret: str) -> Tuple[str, str]:
+    """钉钉 webhook 加签：返回 (timestamp, sign)"""
+    timestamp = str(round(time.time() * 1000))
+    secret_enc = secret.encode("utf-8")
+    string_to_sign = f"{timestamp}\n{secret}"
+    string_to_sign_enc = string_to_sign.encode("utf-8")
+    hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod="sha256").digest()
+    sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+    return timestamp, sign
+
+
+async def send_notification(db, from_user_id: int, message: str) -> dict:
+    """
+    向另一名用户发送钉钉通知。
+    从被通知方的 user 记录读取 dingtalk（加签密钥）、webhookUrl，使用加签推送。
+    """
+    from app.services import user as user_svc
+
+    partner_id = await user_svc.get_partner_id(db, from_user_id)
+    if not partner_id:
+        raise ValueError("未找到对方用户")
+
+    partner = await user_svc.get_user(db, partner_id)
+    if not partner:
+        raise ValueError("对方用户不存在")
+
+    webhook_url = (partner.get("webhookUrl") or "").strip()
+    dingtalk = (partner.get("dingtalk") or "").strip()  # dingtalk 即加签密钥
+
+    if not webhook_url:
+        raise ValueError("对方未配置 webhookUrl，无法发送通知")
+
+    if not dingtalk:
+        raise ValueError("对方未配置 dingtalk（加签密钥），无法发送通知")
+
+    from_user = await user_svc.get_user(db, from_user_id)
+    from_nickname = (from_user.get("nickname") or from_user.get("username") or "用户") if from_user else "用户"
+
+    content = DINGTALK_NOTIFY_TEMPLATE.format(from_nickname=from_nickname, message=message)
+
+    timestamp, sign = _dingtalk_sign(dingtalk)
+    sep = "&" if "?" in webhook_url else "?"
+    signed_url = f"{webhook_url}{sep}timestamp={timestamp}&sign={sign}"
+
+    payload = {
+        "msgtype": "text",
+        "text": {"content": content},
+        "at": {"isAtAll": False},
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(signed_url, json=payload)
+    result = resp.json()
+
+    if resp.status_code != 200 or result.get("errcode", -1) != 0:
+        errmsg = result.get("errmsg", resp.text)
+        raise ValueError(f"钉钉推送失败: {errmsg}")
+
+    return {"success": True, "errcode": 0}

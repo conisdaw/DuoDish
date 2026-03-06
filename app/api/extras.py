@@ -1,10 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
 from app.auth import get_current_user
-from app.schemas import ApiResponse
+from app.schemas import ApiResponse, NotifyRequest
 from app.services import extras as extras_svc
 
 router = APIRouter(prefix="/api", tags=["其他功能"])
@@ -41,3 +41,16 @@ async def surprise_status(db=Depends(get_db), _: int = Depends(get_current_user)
 async def dashboard(db=Depends(get_db), _: int = Depends(get_current_user)):
     data = await extras_svc.get_dashboard(db)
     return ApiResponse(data=data)
+
+
+@router.post("/notify", summary="向对方发送钉钉通知", response_model=ApiResponse)
+async def notify_partner(body: NotifyRequest, db=Depends(get_db), user_id: int = Depends(get_current_user)):
+    """
+    通过钉钉 webhook 向另一名用户发送通知。
+    从对方 user 记录读取 dingtalk（加签密钥）、webhookUrl，使用加签认证推送。
+    """
+    try:
+        result = await extras_svc.send_notification(db, from_user_id=user_id, message=body.message)
+        return ApiResponse(data=result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

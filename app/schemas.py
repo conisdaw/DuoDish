@@ -55,6 +55,10 @@ class UserUpdate(BaseModel):
     webhookUrl: Optional[str] = None
 
 
+class NotifyRequest(BaseModel):
+    message: str
+
+
 # ───────────── 偏好 ─────────────
 
 class PreferenceInfo(BaseModel):

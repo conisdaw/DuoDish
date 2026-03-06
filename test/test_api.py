@@ -8,11 +8,39 @@ PyCharm: 右键 test_api.py -> Run 'pytest in test_api.py'
 或: Settings -> Tools -> Python Integrated Tools -> Default test runner -> pytest
 """
 
+import base64
+import json
 import os
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 # ═══════════════════════════════════════════
 #  辅助函数
 # ═══════════════════════════════════════════
+
+
+def _encrypt_for_auth(public_key_pem: str, payload: dict) -> str:
+    """使用 RSA 公钥加密认证数据，模拟前端加密（含 _t _n 防重放）"""
+    import time
+    data = {**payload, "_t": int(time.time()), "_n": os.urandom(8).hex()}
+    return _encrypt_raw(public_key_pem, data)
+
+
+def _encrypt_raw(public_key_pem: str, data: dict) -> str:
+    """加密任意 dict（不自动添加 _t _n），用于测试"""
+    pub = serialization.load_pem_public_key(public_key_pem.encode())
+    plain = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    cipher = pub.encrypt(
+        plain,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+    return base64.b64encode(cipher).decode("ascii")
+
 
 def auth(state, user=1):
     return {"Authorization": f"Bearer {state[f'token{user}']}"}
@@ -31,44 +59,69 @@ def ok(resp, code=200):
 
 class Test01Auth:
 
+    def test_public_key(self, api):
+        r = api.get("/api/auth/public-key")
+        assert r.status_code == 200
+        data = r.json()
+        assert "publicKey" in data
+        assert "-----BEGIN PUBLIC KEY-----" in data["publicKey"]
+
     def test_register_alice(self, api, state):
-        data = ok(api.post("/api/auth/register", json={
-            "username": "alice", "password": "123456", "nickname": "小爱",
-        }))
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "alice", "password": "123456", "nickname": "小爱"})
+        data = ok(api.post("/api/auth/register", json={"encryptedData": enc}))
         assert data["user_id"] == 1
         assert data["token"]
         state["token1"] = data["token"]
 
     def test_register_bob(self, api, state):
-        data = ok(api.post("/api/auth/register", json={
-            "username": "bob", "password": "123456", "nickname": "阿宝",
-        }))
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "bob", "password": "123456", "nickname": "阿宝"})
+        data = ok(api.post("/api/auth/register", json={"encryptedData": enc}))
         assert data["user_id"] == 2
         state["token2"] = data["token"]
 
-    def test_register_third_rejected(self, api, state):
-        r = api.post("/api/auth/register", json={
-            "username": "charlie", "password": "123456",
-        })
+    def test_register_third_rejected(self, api):
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "charlie", "password": "123456"})
+        r = api.post("/api/auth/register", json={"encryptedData": enc})
         assert r.json()["code"] == 403
 
     def test_login_alice(self, api, state):
-        data = ok(api.post("/api/auth/login", json={
-            "username": "alice", "password": "123456",
-        }))
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "alice", "password": "123456"})
+        data = ok(api.post("/api/auth/login", json={"encryptedData": enc}))
         state["token1"] = data["token"]
 
     def test_login_bob(self, api, state):
-        data = ok(api.post("/api/auth/login", json={
-            "username": "bob", "password": "123456",
-        }))
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "bob", "password": "123456"})
+        data = ok(api.post("/api/auth/login", json={"encryptedData": enc}))
         state["token2"] = data["token"]
 
     def test_login_wrong_password(self, api):
-        r = api.post("/api/auth/login", json={
-            "username": "alice", "password": "wrong",
-        })
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_for_auth(pem, {"username": "alice", "password": "wrong"})
+        r = api.post("/api/auth/login", json={"encryptedData": enc})
         assert r.json()["code"] == 401
+
+    def test_login_missing_timestamp_rejected(self, api):
+        """缺少时间戳 _t 的密文应被拒绝（需使用最新版前端）"""
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        enc = _encrypt_raw(pem, {"username": "alice", "password": "123456"})
+        r = api.post("/api/auth/login", json={"encryptedData": enc})
+        assert r.json()["code"] == 400
+        assert "时间戳" in r.json()["message"]
+
+    def test_login_expired_rejected(self, api):
+        """超时密文应被拒绝（防重放）"""
+        import time
+        pem = api.get("/api/auth/public-key").json()["publicKey"]
+        data = {"username": "alice", "password": "123456", "_t": int(time.time()) - 600, "_n": "deadbeef"}
+        enc = _encrypt_raw(pem, data)
+        r = api.post("/api/auth/login", json={"encryptedData": enc})
+        assert r.json()["code"] == 400
+        assert "过期" in r.json()["message"]
 
 
 # ═══════════════════════════════════════════
@@ -149,19 +202,26 @@ class Test03Users:
         data = ok(api.put("/api/users/me", headers=auth(state), json={
             "nickname": "小爱同学",
             "avatar": state["upload_url1"],
+            "dingtalk": "alice_dingtalk",
+            "webhookUrl": "https://oapi.dingtalk.com/robot/send?access_token=xxx",
         }))
         assert data["nickname"] == "小爱同学"
         assert data["avatar"] == state["upload_url1"]
+        assert data["dingtalk"] == "alice_dingtalk"
+        assert data["webhookUrl"] == "https://oapi.dingtalk.com/robot/send?access_token=xxx"
 
     def test_update_bob(self, api, state):
         data = ok(api.put("/api/users/me", headers=auth(state, 2), json={
             "avatar": state["upload_url3"],
+            "webhookUrl": "https://oapi.dingtalk.com/robot/send?access_token=yyy",
         }))
         assert data["avatar"] == state["upload_url3"]
+        assert data["webhookUrl"] == "https://oapi.dingtalk.com/robot/send?access_token=yyy"
 
     def test_get_bob(self, api, state):
         data = ok(api.get("/api/users/me", headers=auth(state, 2)))
         assert data["username"] == "bob"
+        assert data["webhookUrl"] == "https://oapi.dingtalk.com/robot/send?access_token=yyy"
 
 
 # ═══════════════════════════════════════════
@@ -545,10 +605,11 @@ class Test09aPrivateKitchen:
 
     def test_create_dish(self, api, state, image_dir):
         if "token1" not in state:
-            ok(api.post("/api/auth/register", json={"username": "alice", "password": "123456", "nickname": "小爱"}))
-            ok(api.post("/api/auth/register", json={"username": "bob", "password": "123456", "nickname": "阿宝"}))
+            pem = api.get("/api/auth/public-key").json()["publicKey"]
+            ok(api.post("/api/auth/register", json={"encryptedData": _encrypt_for_auth(pem, {"username": "alice", "password": "123456", "nickname": "小爱"})}))
+            ok(api.post("/api/auth/register", json={"encryptedData": _encrypt_for_auth(pem, {"username": "bob", "password": "123456", "nickname": "阿宝"})}))
             for u, p, t in [("alice", "123456", "token1"), ("bob", "123456", "token2")]:
-                data = ok(api.post("/api/auth/login", json={"username": u, "password": p}))
+                data = ok(api.post("/api/auth/login", json={"encryptedData": _encrypt_for_auth(pem, {"username": u, "password": p})}))
                 state[t] = data["token"]
             for i, name in enumerate(["72027189_p0.png", "72100589_p0.png"], 1):
                 path = os.path.join(image_dir, name)

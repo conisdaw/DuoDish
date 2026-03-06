@@ -164,18 +164,17 @@ DuoDish/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| `GET` | `/api/auth/public-key` | 获取 RSA 公钥（供前端加密） |
 | `POST` | `/api/auth/register` | 用户注册 |
 | `POST` | `/api/auth/login` | 用户登录 |
 
-**注册 / 登录请求体：**
-
+**注册 / 登录仅支持加密传输**，使用 `frontend/auth-crypto.js` 加密后传入：
 ```json
 {
-  "username": "alice",
-  "password": "123456",
-  "nickname": "小爱"       // 注册时可选
+  "encryptedData": "<Base64 密文，由前端 RSA-OAEP 加密得到>"
 }
 ```
+加密增强：RSA 4096 位、时间戳防重放（5 分钟有效）、随机 nonce 确保每次密文不同。
 
 **响应 `data`：**
 
@@ -193,7 +192,7 @@ DuoDish/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/users/me` | 获取当前用户信息 |
-| `PUT` | `/api/users/me` | 更新昵称和头像 |
+| `PUT` | `/api/users/me` | 更新昵称、头像、钉钉、Webhook |
 | `GET` | `/api/users/me/preferences` | 获取双方偏好（含对方忌口） |
 | `PUT` | `/api/users/me/preferences` | 更新忌口与喜好 |
 
@@ -202,7 +201,9 @@ DuoDish/
 ```json
 {
   "nickname": "小爱",
-  "avatar": "/uploads/202603/abc123.png"
+  "avatar": "/uploads/202603/abc123.png",
+  "dingtalk": "钉钉号或手机号",
+  "webhookUrl": "https://..."
 }
 ```
 

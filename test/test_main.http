@@ -1,63 +1,19 @@
 @host = http://127.0.0.1:8000
 @contentType = application/json
 
+# 首次运行前: python scripts/get_auth_tokens.py {{host}}
+# 将输出的 token1=xxx、token2=xxx 填入下方
+@token1 = PASTE_TOKEN1_HERE
+@token2 = PASTE_TOKEN2_HERE
+
 ########################################
-# 1. 用户认证
+# 1. 用户认证（仅支持加密）
 ########################################
 
-### 注册用户1（Alice）
-POST {{host}}/api/auth/register
-Content-Type: {{contentType}}
+### 获取 RSA 公钥
+GET {{host}}/api/auth/public-key
 
-{
-  "username": "alice",
-  "password": "123456",
-  "nickname": "Alice"
-}
-
-> {%
-  client.global.set("token1", response.body.data.token);
-%}
-
-### 注册用户2（Bob）
-POST {{host}}/api/auth/register
-Content-Type: {{contentType}}
-
-{
-  "username": "bob",
-  "password": "123456",
-  "nickname": "Bob"
-}
-
-> {%
-  client.global.set("token2", response.body.data.token);
-%}
-
-### 用户1登录
-POST {{host}}/api/auth/login
-Content-Type: {{contentType}}
-
-{
-  "username": "alice",
-  "password": "123456"
-}
-
-> {%
-  client.global.set("token1", response.body.data.token);
-%}
-
-### 用户2登录
-POST {{host}}/api/auth/login
-Content-Type: {{contentType}}
-
-{
-  "username": "bob",
-  "password": "123456"
-}
-
-> {%
-  client.global.set("token2", response.body.data.token);
-%}
+### 注册 / 登录（需用 scripts/get_auth_tokens.py 或 frontend/auth-crypto.js 获取 encryptedData）
 
 ########################################
 # 2. 用户信息（从 Token 自动识别身份）
@@ -90,7 +46,9 @@ Content-Type: {{contentType}}
 
 {
   "nickname": "小爱",
-  "avatar": "{{aliceAvatarUrl}}"
+  "avatar": "{{aliceAvatarUrl}}",
+  "dingtalk": "alice_dingtalk",
+  "webhookUrl": "https://oapi.dingtalk.com/robot/send?access_token=xxx"
 }
 
 ### 上传头像图片（Bob）
@@ -116,7 +74,9 @@ Content-Type: {{contentType}}
 
 {
   "nickname": "阿宝",
-  "avatar": "{{bobAvatarUrl}}"
+  "avatar": "{{bobAvatarUrl}}",
+  "dingtalk": "bob_dingtalk",
+  "webhookUrl": "https://oapi.dingtalk.com/robot/send?access_token=yyy"
 }
 
 ### 获取当前用户信息（Alice，验证头像已更新）

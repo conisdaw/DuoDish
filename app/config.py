@@ -8,3 +8,6 @@ UPLOAD_DIR = "uploads"
 
 LOVE_COIN_PER_ORDER = 10
 LOVE_COIN_FOR_PARTNER_DISH = 5
+
+# 认证加密：有效时间窗口（秒），超时拒绝防重放
+AUTH_PAYLOAD_TTL_SECONDS = 300

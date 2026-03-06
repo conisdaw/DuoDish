@@ -6,7 +6,7 @@ async def get_user(db, user_id: int):
     return await cursor.fetchone()
 
 
-async def update_user(db, user_id: int, nickname=None, avatar=None):
+async def update_user(db, user_id: int, nickname=None, avatar=None, dingtalk=None, webhookUrl=None):
     fields, values = [], []
     if nickname is not None:
         fields.append("nickname = ?")
@@ -14,6 +14,12 @@ async def update_user(db, user_id: int, nickname=None, avatar=None):
     if avatar is not None:
         fields.append("avatar = ?")
         values.append(avatar)
+    if dingtalk is not None:
+        fields.append("dingtalk = ?")
+        values.append(dingtalk)
+    if webhookUrl is not None:
+        fields.append("webhookUrl = ?")
+        values.append(webhookUrl)
     if not fields:
         return
     values.append(user_id)

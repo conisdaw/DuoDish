@@ -24,14 +24,13 @@ class PaginatedData(BaseModel):
 # ───────────── 用户 ─────────────
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    """仅支持加密传输"""
+    encryptedData: str  # Base64 加密的 {"username","password"}
 
 
 class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    nickname: Optional[str] = None
+    """仅支持加密传输"""
+    encryptedData: str  # Base64 加密的 {"username","password","nickname"?}
 
 
 class TokenResponse(BaseModel):
@@ -44,12 +43,16 @@ class UserInfo(BaseModel):
     username: str
     nickname: Optional[str] = None
     avatar: Optional[str] = None
+    dingtalk: Optional[str] = None
+    webhookUrl: Optional[str] = None
     created_at: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None
     avatar: Optional[str] = None
+    dingtalk: Optional[str] = None
+    webhookUrl: Optional[str] = None
 
 
 # ───────────── 偏好 ─────────────

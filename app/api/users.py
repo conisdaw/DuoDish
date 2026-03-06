@@ -21,7 +21,9 @@ async def get_user(db=Depends(get_db), user_id: int = Depends(get_current_user))
 @router.put("/me", summary="更新当前用户信息", response_model=ApiResponse)
 async def update_user(body: UserUpdate, db=Depends(get_db),
                       user_id: int = Depends(get_current_user)):
-    await user_svc.update_user(db, user_id, nickname=body.nickname, avatar=body.avatar)
+    await user_svc.update_user(db, user_id,
+                               nickname=body.nickname, avatar=body.avatar,
+                               dingtalk=body.dingtalk, webhookUrl=body.webhookUrl)
     user = await user_svc.get_user(db, user_id)
     data = dict(user)
     data.pop("password_hash", None)

@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     nickname TEXT,
     avatar TEXT,
+    dingtalk TEXT,
+    webhookUrl TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -214,7 +216,7 @@ INSERT OR IGNORE INTO achievements (id, name, description, category, criteria, b
 
 -- ==================== 预置兑换物品（含不生气券星级体系） ====================
 INSERT OR IGNORE INTO redeem_items (id, name, description, cost, star_level, synthesize_from, synthesize_count, is_active) VALUES
-(1, '免洗碗特权', '一次免洗碗/免做家务的特权', 200, 0, NULL, 3, 1),
+(1, '免洗碗特权', '一次免洗碗/免做家务的特权', 1000, 0, NULL, 3, 1),
 (2, '点餐独裁权', '下次完全由你说了算', 300, 0, NULL, 3, 1),
 (3, '一星不生气券', '基础版不生气券，500爱情币兑换，可抵消一次小摩擦', 500, 1, NULL, 3, 1),
 (4, '二星不生气券', '进阶版不生气券，三张一星合成获得', 0, 2, 3, 3, 1),
